@@ -1,10 +1,12 @@
-name: Destroy AWS Infrastructure and Docker Resources
+name: Create AWS Infrastructure with Terraform
 
 on:
-  workflow_dispatch:  # Allows manual trigger from GitHub Actions UI
+  push:
+    branches: [main]
+  workflow_dispatch:  # optional: allow manual trigger
 
 jobs:
-  destroy:
+  terraform-apply:
     runs-on: ubuntu-latest
 
     env:
@@ -25,43 +27,10 @@ jobs:
       run: terraform init
       working-directory: ./Eks-terraform
 
-    - name: Terraform apply
-      run: terraform apply -auto-approve
+    - name: Terraform Validate (optional)
+      run: terraform validate
       working-directory: ./Eks-terraform
 
-    - name: Log in to Amazon ECR
-      uses: aws-actions/amazon-ecr-login@v1
-      with:
-        region: ${{ env.AWS_REGION }}
-
-    - name: Remove Docker images from ECR
-      run: |
-        IMAGE_TAGS=$(aws ecr list-images --repository-name medusa-backend --query 'imageIds[*].imageTag' --output text --region $AWS_REGION)
-        if [ -n "$IMAGE_TAGS" ]; then
-          for tag in $IMAGE_TAGS; do
-            aws ecr batch-delete-image \
-              --repository-name medusa-backend \
-              --image-ids imageTag=$tag \
-              --region $AWS_REGION
-          done
-        else
-          echo "No images found to delete."
-        fi
-
-    - name: Remove Docker containers
-      run: |
-        CONTAINERS=$(docker ps -aq)
-        if [ -n "$CONTAINERS" ]; then
-          docker rm -f $CONTAINERS
-        else
-          echo "No containers to remove."
-        fi
-
-    - name: Remove Docker volumes
-      run: |
-        VOLUMES=$(docker volume ls -q)
-        if [ -n "$VOLUMES" ]; then
-          docker volume rm $VOLUMES
-        else
-          echo "No volumes to remove."
-        fi
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
+      working-directory: ./Eks-terraform
